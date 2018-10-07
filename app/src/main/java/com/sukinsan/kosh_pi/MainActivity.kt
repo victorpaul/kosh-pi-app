@@ -9,7 +9,7 @@ import com.sukinsan.kosh_pi.util.KoshPiUtil
 import kotlinx.android.synthetic.main.activity_main.*
 import javax.inject.Inject
 
-class MainActivity : AppCompatActivity(), KoshPiUtil.OnGetIp, KoshPiUtil.OnHealth {
+class MainActivity : AppCompatActivity(), KoshPiUtil.OnHealth, KoshPiUtil.OnPong {
 
     val TAG: String = MainActivity::class.java.simpleName
 
@@ -39,17 +39,17 @@ class MainActivity : AppCompatActivity(), KoshPiUtil.OnGetIp, KoshPiUtil.OnHealt
         DaggerAppComponent.create().bean(this)
         setContentView(R.layout.activity_main)
 
-        koshPiApi.getServerIp(this)
+        koshPiApi.pingServer(this)
+        koshPiApi.getServerHealth(this)
+
 
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener)
     }
 
-    override fun onServerIpResponse(ip: String) {
-        Log.i(TAG, "onServerIpResponse $ip")
-        koshPiApi.getServerHealth(ip,this)
-    }
-
     override fun onHealthResponse(health: String) {
         Log.i(TAG, "onHealthResponse $health")
+    }
+    override fun onPongResponse(pong: String) {
+        Log.i(TAG, "onPongResponse $pong")
     }
 }

@@ -1,12 +1,12 @@
 package com.sukinsan.kosh_pi.util
 
+import android.util.Log
 import com.sukinsan.kosh_pi.retrofit.KoshPiApi
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 interface KoshPiUtil {
-
-    interface OnGetIp {
-        fun onServerIpResponse(ip: String)
-    }
 
     interface OnHealth {
         fun onHealthResponse(health: String)
@@ -16,34 +16,80 @@ interface KoshPiUtil {
         fun onPongResponse(pong: String)
     }
 
-    fun getServerIp(callback: OnGetIp)
+    fun getIp(): String
 
-    fun pingServer(ip: String, callback: OnPong)
+    fun isExpiredIp(callback: () -> Unit)
 
-    fun getServerHealth(ip: String, callback: OnHealth)
+    fun pingServer(callback: OnPong)
 
+    fun getServerHealth(callback: OnHealth)
+
+    fun interceptor(request: Call<String>,
+                    success: (call: Call<String>, resp: Response<String>) -> Unit,
+                    fail: (call: Call<String>, t: Throwable) -> Unit)
 }
 
 class KoshPiUtilImpl(private val koshPiApi: KoshPiApi) : KoshPiUtil {
 
-    override fun getServerIp(callback: KoshPiUtil.OnGetIp) {
-        Thread {
-            val resp = koshPiApi.ip().execute()
-            if (resp.isSuccessful) callback.onServerIpResponse(resp.body()!!)
-        }.start()
+    private val TAG: String = KoshPiUtil::class.java.simpleName
+    private var cachedIp: String = ""
+
+    override fun getIp(): String {
+        if (cachedIp.isEmpty()) {
+            cachedIp = koshPiApi.ip().execute().body()!!
+        }
+        return cachedIp
     }
 
-    override fun getServerHealth(ip: String, callback: KoshPiUtil.OnHealth) {
-        Thread {
-            val resp = koshPiApi.health(ip).execute()
-            if (resp.isSuccessful) callback.onHealthResponse(resp.body()!!)
-        }.start()
+
+    override fun interceptor(request: Call<String>, success: (call: Call<String>, response: Response<String>) -> Unit, fail: (call: Call<String>, t: Throwable) -> Unit) {
+        request.enqueue(object : Callback<String> {
+            override fun onResponse(call: Call<String>, response: Response<String>) {
+                //todo check kosh-pi headers
+                when (response.isSuccessful) {
+                    true -> success.invoke(call, response)
+                    false -> fail.invoke(call, Throwable("Bad response from server"))
+                }
+            }
+
+            override fun onFailure(call: Call<String>, t: Throwable) {
+                fail.invoke(call, t)
+
+                //isExpiredIp { request.enqueue(this) } //todo repeat this call if it was ip problem
+            }
+        })
     }
 
-    override fun pingServer(ip: String, callback: KoshPiUtil.OnPong) {
-        Thread {
-            val resp = koshPiApi.ip().execute()
-            if (resp.isSuccessful) callback.onPongResponse(resp.body()!!)
-        }.start()
+    override fun isExpiredIp(callback: () -> Unit) {
+        Log.i(TAG, "isExpiredIp")
+        koshPiApi.ip().enqueue(object : Callback<String> {
+            override fun onResponse(call: Call<String>, response: Response<String>) {
+                val ip = response.body()
+                Log.i(TAG, "isExpiredIp $ip and $cachedIp")
+                if (!ip.isNullOrEmpty() && !ip.equals(cachedIp)) {
+                    Log.i(TAG, "let's say that there is new cached ip")
+                    cachedIp = ip!!
+                    callback.invoke()
+                }
+            }
+
+            override fun onFailure(call: Call<String>, t: Throwable) {
+                TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+            }
+        })
+    }
+
+    override fun getServerHealth(cllbk: KoshPiUtil.OnHealth) {
+        Log.i(TAG, "getServerHealth")
+        interceptor(koshPiApi.health(getIp()),
+                { c, r -> cllbk.onHealthResponse(r.body()!!) },
+                { c, t -> isExpiredIp { getServerHealth(cllbk) } })
+    }
+
+    override fun pingServer(cllbk: KoshPiUtil.OnPong) {
+        Log.i(TAG, "pingServer")
+        interceptor(koshPiApi.ping(getIp()),
+                { c, r -> cllbk.onPongResponse(r.body()!!) },
+                { c, t -> isExpiredIp { pingServer(cllbk) } })
     }
 }
