@@ -2,6 +2,9 @@ package com.sukinsan.kosh_pi.util
 
 import android.util.Log
 import com.sukinsan.kosh_pi.retrofit.KoshPiApi
+import kotlinx.coroutines.experimental.GlobalScope
+import kotlinx.coroutines.experimental.delay
+import kotlinx.coroutines.experimental.launch
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -106,6 +109,14 @@ class KoshPiUtilImpl(private val koshPiApi: KoshPiApi) : KoshPiUtil {
     }
 
     override fun pingServer(cllbk: (pong: String) -> Unit) {
+
+        // https://github.com/Kotlin/kotlinx.coroutines
+        val job = GlobalScope.launch {
+            delay(1000)
+            log("Hello from Kotlin Coroutines!")
+        }
+        log("Job " + job.isActive)
+
         getPiIp { ip ->
             handlePiRequest(koshPiApi.ping(ip),
                     { c, r -> cllbk.invoke(r.body()!!) },
