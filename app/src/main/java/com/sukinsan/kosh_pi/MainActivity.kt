@@ -4,12 +4,16 @@ import android.os.Bundle
 import android.support.design.widget.BottomNavigationView
 import android.support.v7.app.AppCompatActivity
 import android.util.Log
+import android.widget.Toast
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.request.RequestOptions
 import com.sukinsan.kosh_pi.dagger2.DaggerAppComponent
 import com.sukinsan.kosh_pi.util.KoshPiUtil
 import kotlinx.android.synthetic.main.activity_main.*
 import javax.inject.Inject
 
-class MainActivity : AppCompatActivity(), KoshPiUtil.OnHealth, KoshPiUtil.OnPong {
+class MainActivity : AppCompatActivity(), KoshPiUtil.OnHealth {
 
     val TAG: String = MainActivity::class.java.simpleName
 
@@ -19,15 +23,15 @@ class MainActivity : AppCompatActivity(), KoshPiUtil.OnHealth, KoshPiUtil.OnPong
     private val mOnNavigationItemSelectedListener = BottomNavigationView.OnNavigationItemSelectedListener { item ->
         when (item.itemId) {
             R.id.navigation_home -> {
-                message.setText(R.string.title_home)
+                loadImage()
                 return@OnNavigationItemSelectedListener true
             }
             R.id.navigation_dashboard -> {
-                message.setText(R.string.title_dashboard)
+                loadImage()
                 return@OnNavigationItemSelectedListener true
             }
             R.id.navigation_notifications -> {
-                message.setText(R.string.title_notifications)
+                loadImage()
                 return@OnNavigationItemSelectedListener true
             }
         }
@@ -39,9 +43,8 @@ class MainActivity : AppCompatActivity(), KoshPiUtil.OnHealth, KoshPiUtil.OnPong
         DaggerAppComponent.create().bean(this)
         setContentView(R.layout.activity_main)
 
-        koshPiApi.pingServer(this)
+        koshPiApi.pingServer { pong -> Log.i(TAG, "onHealthResponse $pong") }
         koshPiApi.getServerHealth(this)
-
 
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener)
     }
@@ -49,7 +52,16 @@ class MainActivity : AppCompatActivity(), KoshPiUtil.OnHealth, KoshPiUtil.OnPong
     override fun onHealthResponse(health: String) {
         Log.i(TAG, "onHealthResponse $health")
     }
-    override fun onPongResponse(pong: String) {
-        Log.i(TAG, "onPongResponse $pong")
+
+    fun loadImage() {
+        koshPiApi.getPiIp {
+            Glide.with(this)
+                    .load("http://$it/api/camera")
+                    .apply(RequestOptions()
+                            .diskCacheStrategy(DiskCacheStrategy.NONE)
+                            .skipMemoryCache(true))
+                    .into(img_home)
+            Toast.makeText(this, "update", Toast.LENGTH_SHORT).show()
+        }
     }
 }
